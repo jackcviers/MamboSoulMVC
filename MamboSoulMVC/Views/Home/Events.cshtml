@@ -1,0 +1,46 @@
+﻿@{
+    ViewBag.Title = "Events";
+    Layout = "~/Views/_Layout.cshtml";
+}
+
+<br/>
+<div id="eventcontent">
+    For more information on upcoming events and classes, visit us on <a href="https://www.facebook.com/groups/336406369783855/" target="_blank" style="text-decoration:none"><img src="../Images/facebook-icon.png" style="width:35px;" /></a> <br /> <br />
+
+    Content from some our recent events
+</div>
+
+<div id="video">
+    <video controls id="video1" width="640" height="480">
+        <source src="~/Videos/MSDC1.mp4" type="video/mp4" autoplay>
+        Your browser does not support this video
+    </video>
+    <br />
+    <br />
+    <br />
+    <video controls id="video2" width="640" height="480">
+        <source src="~/Videos/MSDC2.mp4" type="video/mp4" autoplay>
+        Your browser does not support this video
+    </video>
+</div>
+
+@section scripts
+{
+    <script>
+        $(document).ready(function () {
+            $("#navhome").removeClass("active");
+            $("#navevents").removeClass("active").addClass("active");
+            $("#navcontact").removeClass("active");
+            $("#navabout").removeClass("active");
+        });
+
+        function PlayPause(id) {
+            var video = $("#" + id)[0]; // Get the dom element using [0]
+
+            if (video.paused)
+                video.play();
+            else
+                video.pause();
+        }
+    </script>
+}

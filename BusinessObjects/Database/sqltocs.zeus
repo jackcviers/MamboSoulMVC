@@ -1,0 +1,2368 @@
+﻿##|TYPE Template
+##|UNIQUEID 3bf563db-6fce-434c-b229-7ad3ec923b90
+##|TITLE MySqlToC#
+##|NAMESPACE 
+##|SOURCE_TYPE Source
+##|OUTPUT_LANGUAGE None
+##|GUI_ENGINE .Net Script
+##|GUI_LANGUAGE C#
+##|GUI_BEGIN
+
+public class GeneratedGui : DotNetScriptGui
+{
+    public GeneratedGui(ZeusContext context) : base(context) {}
+
+    //-----------------------------------------
+    // The User Interface Entry Point
+    //-----------------------------------------
+    public override void Setup()
+    {
+        // ** UNCOMMENT CODE BELOW TO SEE UI **
+
+        ui.Title = "Watson Wyatt SQL to C#";
+        ui.Top = 20;
+        ui.Left = 20;
+        ui.Width = 320;
+        ui.Height = 572;
+
+        // Grab default output path
+        string sOutputPath = "";
+        if (input.Contains("defaultOutputPath")) 
+        {
+            sOutputPath = input["defaultOutputPath"].ToString();
+        }
+            
+        // Setup Folder selection input control.
+        GuiLabel lblPath = ui.AddLabel("lblPath", "Select the output path:", "Select the output path in the field below.");
+        lblPath.Width = 120;
+        GuiTextBox outpath = ui.AddTextBox("txtPath", sOutputPath, "Select the Output Path.");
+        outpath.Width = ui.Width - lblPath.Left - lblPath.Width - 30;
+        outpath.Left = lblPath.Left + lblPath.Width;
+        outpath.Top = lblPath.Top;
+        GuiFilePicker btnSelectPath = ui.AddFilePicker("btnPath", "Browse...", "Select the Output Path.", "txtPath", true);
+        btnSelectPath.Width = lblPath.Width + outpath.Width;
+        
+        GuiLabel lblNS = ui.AddLabel ("lblNamespace", "Namespace: ",  "Provide your objects namespace.");
+        lblNS.Width = 120;
+        GuiTextBox txtNamespace = ui.AddTextBox("txtNamespace", "Unity.BusinessObjects", "Provide your objects namespace.");			
+        txtNamespace.Width = ui.Width - lblNS.Width - lblNS.Left - 30;
+        txtNamespace.Top = lblNS.Top;
+        txtNamespace.Left = lblNS.Left + lblNS.Width;
+
+
+        // Setup Database selection combobox.
+        GuiLabel label_d = ui.AddLabel("lblDatabases", "Select a database:", "Select a database in the dropdown below.");
+        //label_d.Top = cbUsePreservation.Top + cbUsePreservation.Height + 4;
+        GuiComboBox cmbDatabases = ui.AddComboBox("cmbDatabase", "Select a database.");
+        cmbDatabases.Width = btnSelectPath.Width;
+
+        // Setup Tables selection multi-select listbox.
+        GuiLabel lblTables = ui.AddLabel("lblTables", "Select table(s):", "Select tables from the listbox below.");
+        lblTables.Width = btnSelectPath.Width / 2;
+        GuiListBox lstTables = ui.AddListBox("lstTables", "Select tables.");
+        lstTables.Height = 200;
+        lstTables.Width = btnSelectPath.Width;
+
+        GuiLabel lblLogicalKeys = ui.AddLabel("lblLogicalKeys", "Logical Key Columns", "List of Columns that make the logical key");
+        lblLogicalKeys.Width = 120;
+        GuiTextBox logicalKeys = ui.AddTextBox("logicalKeys", "PersonId,CompanyId", "List of Columns that make the logical key");
+
+        GuiLabel lblListKeys = ui.AddLabel("lblListKeys", "List Key Columns", "List of columns used for the list class. They must be a Foreign Key. Empty: Use First FK");
+        lblLogicalKeys.Width = 120;
+        GuiTextBox listKeys = ui.AddTextBox("listKeys", "", "List of columns used for the list class. They must be a Foreign Key. Empty: Use First FK");
+
+        // Attach the onchange event to the cmbDatabases control.
+        setupDatabaseDropdown(cmbDatabases);
+        cmbDatabases.AttachEvent("onchange", "cmbDatabases_onchange");
+
+        ui.ShowGui = true;
+    }
+    
+    public void setupDatabaseDropdown(GuiComboBox cmbDatabases)
+    {
+        try 
+        {	
+            if (MyMeta.IsConnected)
+            {
+                cmbDatabases.BindData(MyMeta.Databases);
+                if (MyMeta.DefaultDatabase != null) 
+                {
+                    cmbDatabases.SelectedValue = MyMeta.DefaultDatabase.Alias;
+                    bindTables(cmbDatabases.SelectedValue);
+                    //bindViews(cmbDatabases.SelectedValue);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+        }
+    }
+    
+    public void bindTables(string sDatabase)
+    {
+        int count = 0;
+    
+        GuiListBox lstTables = ui["lstTables"] as GuiListBox;
+        
+        try 
+        {	
+            IDatabase db = MyMeta.Databases[sDatabase];
+            lstTables.BindData(db.Tables);
+        }
+        catch //() Exception ex
+        {
+        }
+    }
+    
+    public void cmbDatabases_onchange(GuiComboBox control)
+    {
+        GuiComboBox cmbDatabases = ui["cmbDatabase"] as GuiComboBox;
+    
+        bindTables(cmbDatabases.SelectedText);
+        //bindViews(cmbDatabases.SelectedText);
+    }
+
+}
+##|GUI_END
+##|BODY_MODE Markup
+##|BODY_ENGINE .Net Script
+##|BODY_LANGUAGE C#
+##|BODY_TAG_START <%
+##|BODY_TAG_END %>
+##|BODY_BEGIN
+<%#DEBUG%><%
+using System.Collections.Generic;
+public class GeneratedTemplate : DotNetScriptTemplate
+{
+    ArrayList csFiles = new ArrayList();
+    bool hasActiveRow = false;
+    bool hasTransactionId = false;
+    bool isTrackedTable = false;
+    string tableType = "";
+    string tableDateField = "";
+    public GeneratedTemplate(ZeusContext context) : base(context) {}
+
+    //---------------------------------------------------
+    // Render() is where you want to write your logic    
+    //---------------------------------------------------
+    public override void Render()
+    {
+        string databaseName = input["cmbDatabase"].ToString();
+        ArrayList tableNames = input["lstTables"] as ArrayList;
+        
+        IDatabase database = MyMeta.Databases[databaseName];
+        
+        //System.Diagnostics.Debugger.Launch();
+        
+        if (database != null)
+        {
+            foreach(string t in tableNames)
+            {
+                ITable table = database.Tables[t];
+
+                if (table == null)
+                {
+                    output.writeln("WARNING: Table does not exist! - " + t);
+                }
+                else
+                {
+                    bool hasLogicalKeys = false;
+                    List<Column> logicalKeysList = new List<Column>();
+
+                    // determine if this is an Active/Frozen table
+                    if (input["logicalKeys"] != null && input["logicalKeys"].ToString().Length > 0)
+                    {
+                        string[] logicalKeys = input["logicalKeys"].ToString().Split(',');
+
+                        // now let's verify that there is an index that matches
+                        foreach (Index index in table.Indexes)
+                        {
+                            if (index.Columns.Count >= logicalKeys.Length)
+                            {
+                                int i = 0;
+                                logicalKeysList.Clear();
+                                foreach (Column c in index.Columns)
+                                {
+                                    if (i < logicalKeys.Length && c.Name == logicalKeys[i].Trim())
+                                    {
+                                        hasLogicalKeys = true;
+                                        logicalKeysList.Add(c);
+                                    }
+                                    else
+                                    {
+                                        if (i < logicalKeys.Length)
+                                        {
+                                            hasLogicalKeys = false;
+                                            break;
+                                        }
+                                    }
+                                    i++;
+                                }
+                            }
+                            
+                            if (hasLogicalKeys) break;
+                        }
+                    }
+                    
+                    // Keys used to make a list. There should be a foreign key for it.
+                    // There is a longer discussion on whether there should be an explicit index as well.
+                    // As a practical matter, SQL Server will maintain at least an autogenerated nonunique
+                    // index anyway, because it needs to be able to locate the records quickly to check for
+                    // referential integrity on the parent table.
+                    string parentTable = null;
+                    IColumns listColumns = null;
+                    if(input["listKeys"] != null && input["listKeys"].ToString().Length > 0)
+                    {
+                        bool foreignKeyFound = false;
+                        string[] listKeys = input["listKeys"].ToString().Split(',');
+                        
+                        // now let's verify that there is a foreign key that matches
+                        foreach(ForeignKey foreignKey in table.ForeignKeys)
+                        {
+                            if (foreignKey.ForeignColumns.Count == listKeys.Length)
+                            {
+                                int i = 0;
+                                foreach (Column c in foreignKey.ForeignColumns)
+                                {
+                                    if (c.Name == listKeys[i].Trim())
+                                    {
+                                        foreignKeyFound = true;
+                                    }
+                                    else
+                                    {
+                                        foreignKeyFound = false;
+                                        break;
+                                    }
+                                    i++;
+                                }
+                            }
+                            if (foreignKeyFound)
+                            {
+                                parentTable = foreignKey.PrimaryTable.Name;
+                                listColumns = foreignKey.ForeignColumns;
+                                break;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // LEGACY BEHAVIOR BELOW
+                        
+                        // do we have a FK
+                        foreach(ForeignKey item in table.ForeignKeys)
+                        {
+                            if (item.ForeignTable.Name == table.Name)
+                            {
+                                // we have one
+                                parentTable = item.PrimaryTable.Name;
+                                listColumns = item.ForeignColumns;
+                                break;
+                            }
+                        }
+                        
+                        // END LEGACY BEHAVIOR
+                    }
+                    
+                    if (table.Name.EndsWith("_his"))
+                    {
+                        tableType = "his";
+                        tableDateField = "EffectiveDate";
+                    }
+                    else if (table.Name.EndsWith("_txn"))
+                    {
+                        tableType = "txn";
+                        tableDateField = "TransactionDate";
+                    }
+                    else
+                    {
+                        tableType = "";
+                        tableDateField = "";
+                    }
+                    
+                    // See if this table has an "A"ctive row
+                    hasActiveRow = hasLogicalKeys && tableType != "his" && tableType != "txn";
+                    
+                    // check for IWorkflow requirements
+                    hasTransactionId = false;
+                    
+                    foreach (Column c in table.Columns)
+                    {
+                        if (c.Name.ToLower() == "transactionid" && table.Name != "cdm_transaction_log") 
+                            hasTransactionId = true;
+                    }
+                    
+                    isTrackedTable = false;
+                    if(hasTransactionId)
+                    {
+                        // See if changes to the table are tracked (is there a matching "_changes" table?)
+                        foreach(ITable aTable in database.Tables)
+                        {
+                            if (aTable.Name == table.Name + "_changes")
+                            {
+                                isTrackedTable = true;
+                                break;
+                            }
+                        }
+                    }					
+                    
+                    // render the table
+                    Render(table, hasLogicalKeys, logicalKeysList, parentTable, listColumns);
+                }			
+                
+                // Save the output file for this Table
+                string outputFileName = input["txtPath"].ToString();
+                if (!outputFileName.EndsWith("\\") ) 
+                    outputFileName += "\\";
+                
+                bool userDesigner = input["useDesigner"] != null && bool.Parse(input["useDesigner"].ToString());
+
+                if (userDesigner)
+                    outputFileName += CreateClassName(t) + ".designer.cs";
+                else
+                    outputFileName += CreateClassName(t) + ".cs";
+
+                try
+                {
+                    output.save(outputFileName, false);
+                    csFiles.Add(outputFileName);
+                }
+                catch
+                {
+                    
+                }
+
+                if (tableNames.Count > 1 || input["isBatch"] != null )
+                {
+                    output.clear();
+                }
+        
+            }			
+            MyMeta.SaveUserMetaData();
+            
+            if (csFiles.Count > 1 || input["isBatch"] != null )
+            {
+                foreach (string f in csFiles)
+                {
+                    output.writeln("File Created: " + f);
+                }
+            }
+        }
+        else
+        {
+            output.writeln("ERROR: Unable to connect to database: " + databaseName);
+        }
+    }
+
+
+    public void Render(ITable table, bool hasLogicalKeys, List<Column> logicalKeysList, string parentTable, IColumns listColumns)
+    {
+        string result = "";
+        bool found = false;
+%>using System;
+using System.Text;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using BusinessObjects.Database;
+
+// Code Generated Classes. !!! DO NOT CHANGE !!!
+// Database   : <%=input["cmbDatabase"].ToString()%>
+// Created    : <%=DateTime.Now.ToString()%>
+// User       : <%=System.Environment.UserName%>
+// Connection : <%=MyMeta.ConnectionString%>
+namespace <%=input["txtNamespace"].ToString()%>
+{
+    #region Business Entity Class
+    /// <summary>
+    /// Description : <%=table.Description.Replace("\r\n", "\r\n\t/// ")%>
+    /// Table Created : <%=table.DateCreated.ToString()%>
+    /// </summary>
+    public partial class <%=CreateClassName(table.Name)%> : <%=hasActiveRow ? "ActiveFrozen" : ""%>AbstractTable<%=hasTransactionId ? ", ITransactionLog" : ""%>
+    {
+        private <%=CreateDataClassName(table.Name)%> m_Current = new <%=CreateDataClassName(table.Name)%>();
+        private <%=CreateDataClassName(table.Name)%> m_Original;
+        
+        public const string TABLE_NAME = "<%=table.Name%>";
+        //private string TABLE_TYPE = "<%=tableType%>";
+        //private bool HAS_LOGICAL_KEYS = <%=hasLogicalKeys ? "true" : "false"%>;
+        
+        #region Constructors
+        
+        /// <summary>
+        /// Constructor used to create an instance of this table in AddMode.
+        /// </summary>
+        public <%=CreateClassName(table.Name)%>(SqlHelper db) : base(db) {}
+
+        /// <summary>
+        /// Constructor used to create an instance of this table using an
+        /// existing SqlDataReader.
+        /// </summary>
+        public <%=CreateClassName(table.Name)%>(SqlHelper db, SqlDataReader dr) : base(db, dr) {}
+
+        /// <summary>
+        /// Constructor used to create an instance of this table using the
+        /// primary keys of the table.
+        /// </summary><%
+        if (table.PrimaryKeys.Count > 0)
+        {
+%>		
+        public <%=CreateClassName(table.Name)%>(SqlHelper db, <%
+        result="";
+        // MyMeta.Language = "C#";
+        foreach (IColumn column in table.Columns)
+        {
+            if (column.IsInPrimaryKey)
+            {
+                if (result != "") result += ", ";
+                result += column.LanguageType + " " + StringFormatter.CamelCasing(column.Name);
+            }
+        }
+        MyMeta.Language = "C# Nullable";
+        output.write(result);%>) 
+            : this(db)
+        {
+<%
+            result="";
+            output.tabLevel = 3;
+            output.autoTab("if (");
+            foreach (IColumn column in table.Columns)
+            {
+                if (column.IsInPrimaryKey)
+                {
+                    if (result != "") result += " && ";
+                    result += StringFormatter.CamelCasing(column.Name) + " != null";
+                }
+            }
+            output.write(result);
+            output.writeln(")");
+            output.autoTabLn("{");
+            output.tabLevel = 4;
+            foreach (IColumn column in table.Columns)
+            {
+                if (column.IsInPrimaryKey)
+                {
+                    output.autoTabLn("m_Current." + column.Name + " = " + StringFormatter.CamelCasing(column.Name) + ";");
+                }
+            }%>
+                Read();
+            }
+        }
+
+        /// <summary>
+        /// Constructor used to create an instance of this table using the
+        /// provided data class.
+        /// </summary>		
+        public <%=CreateClassName(table.Name)%>(SqlHelper db, <%=CreateDataClassName(table.Name)%> data)
+            : this(db, <%
+        result="";
+        // MyMeta.Language = "C#";
+        foreach (IColumn column in table.Columns)
+        {
+            if (column.IsInPrimaryKey)
+            {
+                if (result != "") result += ", ";
+                result += "data." + column.Name;
+            }
+        }
+        MyMeta.Language = "C# Nullable";
+        output.write(result);%>)
+        {
+            SetCurrentValues(data);
+        }
+        <%
+        }
+        if (hasActiveRow)
+        {%>
+        /// <summary>
+        /// Constructor used to retrieve Active row
+        /// </summary>
+        public <%=CreateClassName(table.Name)%>(SqlHelper db, <%
+            result="";
+            // MyMeta.Language = "C#";
+            foreach (IColumn column in logicalKeysList)
+            {
+                if (result != "") result += ", ";
+                result += column.LanguageType + " " + StringFormatter.CamelCasing(column.Name);
+            }
+            MyMeta.Language = "C# Nullable";
+            output.write(result);%>) 
+            : this(db)
+        {
+            StringBuilder sql = new StringBuilder();
+<%
+                output.tabLevel = 3;
+                foreach (IColumn column in logicalKeysList)
+                {
+                    output.autoTabLn("m_Current." + column.Name + " = " + StringFormatter.CamelCasing(column.Name) + ";");
+                }%>  		
+            sql.Append("SELECT * FROM <%=table.Name%> WITH (NOLOCK) ");
+            sql.Append(GenerateSqlActiveKeys(0));			
+            Read(sql.ToString(), GenerateSqlParametersActiveKeys(0));
+        }<%
+        }
+
+        if (hasLogicalKeys && tableType == "his")
+        {%>
+        /// <summary>
+        /// Constructor used to retrieve the row in effect as of a given date
+        /// </summary>
+        public <%=CreateClassName(table.Name)%>(SqlHelper db, <%
+            result="";
+            // MyMeta.Language = "C#";
+            foreach (IColumn column in logicalKeysList)
+            {
+                if (result != "") result += ", ";
+                result += column.LanguageType + " " + StringFormatter.CamelCasing(column.Name);
+            }
+            MyMeta.Language = "C# Nullable";
+            output.write(result);%>, DateTime? asOfDate) 
+            : this(db)
+        {
+            // Set the values passed in, in case no record is found
+<%
+            output.tabLevel = 3;
+            foreach (IColumn column in logicalKeysList)
+            {
+                output.autoTabLn("m_Current." + column.Name + " = " + StringFormatter.CamelCasing(column.Name) + ";");
+            }%>
+            StringBuilder sql = new StringBuilder();
+
+            // Create our SQL Params
+            List<SqlParameter> sqlParams = new List<SqlParameter>();
+<%
+            output.tabLevel = 3;
+            foreach (IColumn column in logicalKeysList)
+            {
+                if (column.LanguageType == "string")
+                    output.autoTabLn("sqlParams.Add(CreateParameter(String.Format(\"@" + column.Name + "\"), " + column.DbTargetType + ", " + StringFormatter.CamelCasing(column.Name) + "));");
+                else
+                    output.autoTabLn("sqlParams.Add(CreateParameter(String.Format(\"@" + column.Name + "\"), " + column.DbTargetType + ", " + StringFormatter.CamelCasing(column.Name) + ".GetValueOrDefault()));");
+            }%>
+            // Create our SQL statement
+            sql.Append("SELECT TOP 1 * FROM <%=table.Name%> WITH (NOLOCK) WHERE ");<%
+            result="";
+            foreach (IColumn column in logicalKeysList)
+            {
+                if (result != "") result += "AND ";
+                result += (column.Name + " = @" + column.Name + " ");
+            }%>
+            sql.Append("<%=result%>");
+
+            // If the date passed in is not null or DateTime.MaxValue, we want to ignore all rows
+            //  that came into effect after it
+            if (asOfDate.HasValue && (asOfDate != DateTime.MaxValue))
+            {
+                sql.Append("AND EffectiveDate <= @EffectiveDate ");
+                sqlParams.Add(CreateParameter(String.Format("@EffectiveDate"), SqlDbType.DateTime, asOfDate.Value));
+            }
+
+            // Order matters
+            sql.Append("ORDER BY EffectiveDate DESC");
+
+            Read(sql.ToString(), sqlParams.ToArray());
+        }
+<%
+        }
+%>
+        #endregion
+
+        #region Indexer
+        /// <summary>
+        /// Indexer used to access each field by name.
+        /// </summary>
+        public override object this[string field]
+        {
+            get
+            {
+                object result;
+                switch (field.ToLower())
+                {<%
+            output.tabLevel = 4;
+            foreach (IColumn column in table.Columns)
+            {%>
+                    case "<%=column.Name.ToLower()%>":
+                        result = <%=column.Name%>;
+                        break;<%
+            }%>
+                    default:
+                        throw new ApplicationException(String.Format("Field {0} does not exist!", field));
+                }
+                return result;
+            }
+            set
+            {
+                switch (field.ToLower())
+                {<%
+            MyMeta.Language = "C# Convert.To";
+            output.tabLevel = 4;
+            foreach (IColumn column in table.Columns)
+            {
+                if (column.IsAutoKey || column.IsComputed)
+                {%>
+                        case "<%=column.Name.ToLower()%>":
+                            throw new ApplicationException(String.Format("Field {0} cannot be set because " +
+                                "it is an Identity field or a computed field!", field));<%
+                }
+                else
+                {
+                    if (column.LanguageType == "byte[]" || column.LanguageType == "Guid")
+                    {%>
+                        case "<%=column.Name.ToLower()%>":
+                            <%=column.Name%> = (<%=column.LanguageType%>)value;
+                            break;<%
+                    }
+                    else
+                    {%>
+                        case "<%=column.Name.ToLower()%>":
+                            if (value == null)
+								<%=column.Name%> = null;
+                            else
+								<%=column.Name%> = Convert.<%=column.LanguageType%>(value);
+                            break;<%
+                    }
+                }
+            }
+            MyMeta.Language = "C# Nullable";%>
+                    default:
+                        throw new ApplicationException(String.Format("Field {0} does not exist!", field));
+                }
+            }
+        }
+        #endregion
+        
+        #region Public Properties
+        /// <summary>
+        /// Returns the name of the underlying database object used to generate the class
+        /// </summary>
+        public override string DatabaseObjectName
+        {
+            get { return TABLE_NAME; }
+        }
+        
+        /// <summary>
+        /// Gets an instance of a class that represents the fields in the Primary Key
+        /// </summary>
+        public <%=CreateClassName(table.Name)%>PrimaryKey PrimaryKey
+        {
+            get
+            {
+                <%=CreateClassName(table.Name)%>PrimaryKey key = new <%=CreateClassName(table.Name)%>PrimaryKey();
+<%
+            output.tabLevel = 4;
+            foreach (IColumn column in table.Columns)
+            {
+                if (column.IsInPrimaryKey)
+                {
+                    if (column.LanguageType == "string")
+                        output.autoTabLn("key." + column.Name + " = m_Current." + column.Name + ";");
+                    else
+                        output.autoTabLn("key." + column.Name + " = m_Current." + column.Name + ".GetValueOrDefault();");
+                }
+            }%>  			
+                return key;
+            }
+        }<% if ( hasLogicalKeys && (tableType == "his" || tableType == "txn") ) {%>
+        
+        /// <summary>
+        /// Gets an instance of a class that represents the fields in the Logical Key
+        /// </summary>
+        public <%=CreateClassName(table.Name)%>LogicalKey LogicalKey
+        {
+            get
+            {
+                <%=CreateClassName(table.Name)%>LogicalKey key = new <%=CreateClassName(table.Name)%>LogicalKey();
+                key.<%=tableDateField%> = m_Current.<%=tableDateField%>.GetValueOrDefault();
+<%
+            output.tabLevel = 4;
+            foreach (IColumn column in logicalKeysList)
+            {
+                if (column.LanguageType == "string")
+                    output.autoTabLn("key." + column.Name + " = m_Current." + column.Name + ";");
+                else
+                    output.autoTabLn("key." + column.Name + " = m_Current." + column.Name + ".GetValueOrDefault();");
+            }%>  			
+                return key;
+            }
+        }
+<%}
+        foreach (IColumn column in table.Columns)
+        {
+%>
+        /// <summary>
+        /// Public property that represents the <%=column.Name%> field.
+        /// Description: <%=column.Description.Replace("\r\n", "\r\n\t\t/// ")%>
+        /// </summary>
+        public <%=(hasLogicalKeys && column.Name=="RecordStatus") ? "override " : ""%><%=column.LanguageType%> <%=column.Name%>
+        {
+            get { return m_Current.<%=column.Name%>; }<%if (column.IsAutoKey == false && column.IsComputed == false)
+            {%>
+            set 
+            {	
+                if (value != m_Current.<%=column.Name%>)
+                {<%if (column.LanguageType == "string")
+                {%><%}%>
+                    base.Mode = EditMode.Edit;
+                    m_Current.<%=column.Name%> = value;
+                }
+            }<%}%>
+        }<%}%>
+        #endregion    
+
+        #region Database operations
+        ///<summary></summary>
+        protected override void ReadExecuted(System.Data.SqlClient.SqlDataReader dr)
+        {
+            if (dr != null && !dr.IsClosed)
+            {
+                #region Read Each Field<%
+        foreach (IColumn column in table.Columns)
+        {
+            if (column.LanguageType == "byte[]")
+            {%>
+                if (!dr.IsDBNull(dr.GetOrdinal("<%=column.Name%>"))) m_Current.<%=column.Name%> = (byte[])dr.GetValue(dr.GetOrdinal("<%=column.Name%>"));<%
+            }
+            else
+            {%>
+                if (!dr.IsDBNull(dr.GetOrdinal("<%=column.Name%>"))) m_Current.<%=column.Name%> = dr.<%=GetSqlGetName(column)%>(dr.GetOrdinal("<%=column.Name%>"));<%
+            }
+         }%>
+                #endregion
+                ExistsInDB = true;
+                Mode = EditMode.None;
+                SetOriginalValues();
+            }
+        }
+        <%if (hasActiveRow) {%>
+        #region Active/Frozen Methods
+        protected override string GenerateSqlActiveKeys(int context)
+        {		
+            StringBuilder result = new StringBuilder();<%
+                output.tabLevel = 3;
+                found = false;
+                string sql = "";
+                foreach (IColumn column in logicalKeysList)
+                {%>
+            result.AppendFormat("<%=found ? " AND " : " WHERE "%><%=column.Name%>=@<%=column.Name%>_{0}_key", context);<% 
+                    found = true;
+                }%> 
+            result.Append(" AND RecordStatus='A'");
+            return result.ToString();
+        }
+        protected override SqlParameter[] GenerateSqlParametersActiveKeys(int context)
+        {
+            List<SqlParameter> results = new List<SqlParameter>();<%
+            foreach (IColumn column in logicalKeysList)
+            {%>
+            results.Add(CreateParameter(String.Format("@<%=column.Name%>_{0}_key", context), <%=column.DbTargetType%>, m_Current.<%=column.Name%>));<% 
+            }%>			
+            return results.ToArray();
+        }
+        #endregion
+        <%}%>
+        #region SELECT
+        ///<summary></summary>
+        protected override string GenerateSqlSelect(int context)
+        {
+            StringBuilder sql = new StringBuilder();
+            sql.Append("SELECT * FROM <%=table.Name%> WITH (NOLOCK) ");
+            sql.Append(GenerateWhereClausePrimaryKey(context));
+            return sql.ToString();
+        }
+<%
+if(isTrackedTable)
+{
+%>		///<summary></summary>
+        protected string GenerateStoredProcedureCallParametersPrimaryKey(int context)
+        {
+            StringBuilder sql = new StringBuilder();
+            // primary key where clause<%
+            found = false;
+            foreach (IColumn column in table.Columns)
+            {
+                if (column.IsInPrimaryKey)
+                {%>
+            sql.AppendFormat("<%=found ? ", " : " "%>@<%=column.Name%>=@<%=column.Name%>_{0}_key", context);<% 
+                    found = true;
+                }
+            }
+            %>
+            return sql.ToString();
+        }
+<%
+}
+%>		///<summary></summary>
+        protected override string GenerateWhereClausePrimaryKey(int context)
+        {
+            StringBuilder sql = new StringBuilder();
+            // primary key where clause<%
+            found = false;
+            foreach (IColumn column in table.Columns)
+            {
+                if (column.IsInPrimaryKey)
+                {%>
+            sql.AppendFormat("<%=found ? " AND " : " WHERE "%><%=column.Name%>=@<%=column.Name%>_{0}_key", context);<% 
+                    found = true;
+                }
+            }
+            %>
+            return sql.ToString();
+        }
+        /// <summary>
+        /// Generates an array of SqlParameters based on the primary key of the table
+        /// </summary>
+        public override SqlParameter[] GenerateSqlParametersPrimaryKey(int context)
+        {
+            List<SqlParameter> results = new List<SqlParameter>();<%
+            foreach (IColumn column in table.Columns)
+            {
+                if (column.IsInPrimaryKey)
+                {%>
+            results.Add(CreateParameter(String.Format("@<%=column.Name%>_{0}_key", context), <%=column.DbTargetType%>, m_Current.<%=column.Name%>));<% 
+                }
+            }
+            %>
+            return results.ToArray();
+        }
+        #endregion
+        
+        #region INSERT
+        ///<summary></summary>
+        protected override string GenerateSqlInsert(int context)
+        {
+            StringBuilder result = new StringBuilder();
+            List<string> fields = new List<string>();
+<%
+            if (hasActiveRow) {%>
+            result.Append(UpdateActiveToFrozen(context));
+        <% }%>
+            result.Append("INSERT INTO <%=table.Name%> (");
+
+            #region Check each field to insert
+<%
+            foreach (IColumn column in table.Columns)
+            {
+                if (column.IsAutoKey == false)
+                {
+%>            if (m_Current.<%=column.Name%> != null) fields.Add("<%=column.Name%>");
+<%				}
+            }%>
+            #endregion
+            
+            result.Append(string.Join(",", fields.ToArray()));
+            result.Append(") VALUES (");
+            for (int x=0; x < fields.Count; x++)
+                fields[x] = String.Format("@{0}_{1}", fields[x], context);
+            result.Append(string.Join(",", fields.ToArray()));
+            result.Append(")");
+
+            return result.ToString();
+        }
+        ///<summary></summary>
+        protected override SqlParameter[] GenerateSqlParametersInsert(int context)
+        {
+            List<SqlParameter> results = new List<SqlParameter>();
+<%
+            if (hasActiveRow) {%>
+            // run freeze 
+            results.AddRange(GenerateSqlParametersActiveKeys(context));
+        <% }%>
+            #region Check each field to insert
+<%
+            foreach (IColumn column in table.Columns)
+            {
+                if (column.IsAutoKey == false)
+                {%>
+            if (m_Current.<%=column.Name%> != null)
+                results.Add(CreateParameter(String.Format("@<%=column.Name%>_{0}", context), <%=column.DbTargetType%>, m_Current.<%=column.Name%>));<%
+                }
+            }%>
+            #endregion
+            
+            return results.ToArray();
+        }
+        ///<summary></summary>
+        protected override void SetIdentity(object value)
+        {
+        <%
+            MyMeta.Language = "C# Convert.To";
+            output.tabLevel = 2;
+            bool hasIdent = false;
+            foreach (IColumn column in table.Columns)
+            {
+                if (column.IsAutoKey)
+                {
+                    output.autoTabLn("m_Current." + column.Name +" = Convert." + column.LanguageType + "(value);");
+                    hasIdent = true;
+                    break;
+                }
+            }
+            MyMeta.Language = "C# Nullable";
+%>      }<%
+        if (hasIdent)
+        {
+%>
+        ///<summary></summary>
+        protected override bool HasIdentity
+        {
+            get {return true;}
+        }
+<%
+        }
+%>
+        #endregion
+        
+        #region UPDATE
+        ///<summary></summary>
+        protected override string GenerateSqlUpdate(int context)
+        {
+            StringBuilder sql = new StringBuilder();
+            List<string> fields = new List<string>();
+            
+        <%if (hasLogicalKeys && tableType == "his") {%>
+            if (m_Current.EffectiveDate == m_Original.EffectiveDate)
+            {
+                // run update only
+                #region Check each field to update
+                sql.Append("UPDATE <%=table.Name%> SET ");<%
+                foreach (IColumn column in table.Columns)
+                {
+                    if (column.IsAutoKey == false)
+                    {%>
+                if (m_Current.<%=column.Name%> != m_Original.<%=column.Name%>)
+                    fields.Add(String.Format("<%=column.Name%>=@<%=column.Name%>_{0}", context));<%
+                    }
+                }%>
+                if (fields.Count == 0) return "";
+                
+                sql.Append(String.Join(",", fields.ToArray()));
+                // primary key where clause
+                sql.Append(GenerateWhereClausePrimaryKey(context));
+                #endregion
+            }
+            else
+            {
+                sql.AppendLine(GenerateSqlInsert(context));
+            }
+        <% } else if (hasActiveRow) { %>
+            if (m_Original.RecordStatus == "A")
+            {
+                // see insert for update to frozen
+                sql.AppendLine(GenerateSqlInsert(context));						
+            }
+			else if (m_Original.RecordStatus == "T")
+			{
+				// run update only
+				#region Check each field to update
+				sql.Append("UPDATE <%=table.Name%> SET ");<%
+				foreach (IColumn column in table.Columns)
+				{
+					if (column.IsAutoKey == false)
+					{%>
+				if (m_Current.<%=column.Name%> != m_Original.<%=column.Name%>)
+					fields.Add(String.Format("<%=column.Name%>=@<%=column.Name%>_{0}", context));<%
+					}
+				}%>
+				if (fields.Count == 0) return "";
+            
+				sql.Append(String.Join(",", fields.ToArray()));
+				// primary key where clause
+				sql.Append(GenerateWhereClausePrimaryKey(context));
+				#endregion
+			}
+            else
+            {
+                throw new InvalidOperationException("Updating of 'F'rozen records is not allowed!");
+            }
+        <% } else { %>
+            // run update only
+            #region Check each field to update
+            sql.Append("UPDATE <%=table.Name%> SET ");<%
+            foreach (IColumn column in table.Columns)
+            {
+                if (column.IsAutoKey == false)
+                {%>
+            if (m_Current.<%=column.Name%> != m_Original.<%=column.Name%>)
+                fields.Add(String.Format("<%=column.Name%>=@<%=column.Name%>_{0}", context));<%
+                }
+            }%>
+            if (fields.Count == 0) return "";
+            
+            sql.Append(String.Join(",", fields.ToArray()));
+            // primary key where clause
+            sql.Append(GenerateWhereClausePrimaryKey(context));
+            #endregion
+        <% } %>
+
+            return sql.ToString();
+        }
+        ///<summary></summary>
+        protected override SqlParameter[] GenerateSqlParametersUpdate(int context)
+        {
+            List<SqlParameter> results = new List<SqlParameter>();
+
+        <%if (hasLogicalKeys && tableType == "his") {%>
+            if (m_Current.EffectiveDate == m_Original.EffectiveDate)
+            {
+                // run update only
+                #region Check each field to update<%
+                foreach (IColumn column in table.Columns)
+                {
+                    if (column.IsAutoKey == false)
+                    {%>
+                if (m_Current.<%=column.Name%> != m_Original.<%=column.Name%>)
+                    results.Add(CreateParameter(String.Format("@<%=column.Name%>_{0}", context), <%=column.DbTargetType%>, m_Current.<%=column.Name%>));<%
+                    }
+                }%>
+                results.AddRange(GenerateSqlParametersPrimaryKey(context));
+                #endregion
+            }
+            else
+            {
+                results.AddRange(GenerateSqlParametersInsert(context));
+            }
+        <% } else if (hasActiveRow) { %>
+            if (m_Original.RecordStatus == "A")
+            {
+                // see Insert for update to frozen
+                results.AddRange(GenerateSqlParametersInsert(context));						
+            }
+			else if (m_Original.RecordStatus == "T")
+			{
+				// run update only
+				#region Check each field to update<%
+				foreach (IColumn column in table.Columns)
+				{
+					if (column.IsAutoKey == false)
+					{%>
+				if (m_Current.<%=column.Name%> != m_Original.<%=column.Name%>)
+					results.Add(CreateParameter(String.Format("@<%=column.Name%>_{0}", context), <%=column.DbTargetType%>, m_Current.<%=column.Name%>));<%
+					}
+				}%>
+				results.AddRange(GenerateSqlParametersPrimaryKey(context));
+				#endregion
+			}
+            else
+            {
+                throw new InvalidOperationException("Updating of 'F'rozen records is not allowed.");
+            }
+        <% } else { %>
+            // run update only
+            #region Check each field to update<%
+            foreach (IColumn column in table.Columns)
+            {
+                if (column.IsAutoKey == false)
+                {%>
+            if (m_Current.<%=column.Name%> != m_Original.<%=column.Name%>)
+                results.Add(CreateParameter(String.Format("@<%=column.Name%>_{0}", context), <%=column.DbTargetType%>, m_Current.<%=column.Name%>));<%
+                }
+            }%>
+            results.AddRange(GenerateSqlParametersPrimaryKey(context));
+            #endregion
+        <% } %>
+            return results.ToArray();
+        }
+        #endregion
+
+        #region DELETE
+        /// <summary>
+        /// Generates a parameterized sql string to delete a row by the primary key of the table
+        /// </summary>
+        public override string GenerateSqlDelete(int context)
+        {
+            StringBuilder sql = new StringBuilder();<%
+            if(isTrackedTable)
+            {
+            %>
+            sql.Append("EXEC s_delete_<%=table.Name%> ");
+            sql.Append(GenerateStoredProcedureCallParametersPrimaryKey(context));
+            
+            if (TransactionId.HasValue && ((m_Original == null) || (m_Original.TransactionId != TransactionId)))
+            {
+                sql.AppendFormat(", @TransactionId={0}", TransactionId.Value.ToString());
+            }
+            <%
+            }
+            else
+            {
+            %>
+            sql.Append("DELETE FROM <%=table.Name%>");
+            sql.Append(GenerateWhereClausePrimaryKey(context));
+            <%
+            }
+            %>
+            return sql.ToString();        
+        }
+        #endregion
+        
+        #endregion   
+
+        #region State Management
+        /// <summary>
+        /// Returns an instance of a class that represents the data in the table.
+        /// </summary>
+        public <%=CreateDataClassName(table.Name)%> GetCurrentValues()
+        {
+        <%
+        if (hasTransactionId)
+        {%>	//m_Current.ChangedBy = ChangedBy.UserName;
+            //m_Current.ChangedDate = ChangedBy.Postmark;<%
+        }%>	
+            return (<%=CreateDataClassName(table.Name)%>)m_Current.Clone();
+        }
+
+        /// <summary>
+        /// Sets the properties of the object from an instance of the data class.
+        /// </summary>
+        public void SetCurrentValues(<%=CreateDataClassName(table.Name)%> data)
+        {
+            // set all fields<%
+        foreach (IColumn column in table.Columns)
+        {
+            if (column.IsAutoKey == false)
+            {%>
+            <%=column.Name%> = data.<%=column.Name%>;<%
+            }
+        }%>
+        }
+
+        /// <summary>
+        /// Returns an instance of the original values
+        /// </summary>
+        public <%=CreateDataClassName(table.Name)%> GetOriginalValues()
+        {
+            object result = null;
+            if (m_Original != null) result = m_Original.Clone();
+            return (<%=CreateDataClassName(table.Name)%>)result;
+        }
+
+        /// <summary>
+        /// Sets/Saves the current values to the original values class
+        /// </summary>
+        public override void SetOriginalValues()
+        {
+            m_Original = (<%=CreateDataClassName(table.Name)%>)m_Current.Clone();
+        }
+
+        #endregion
+
+        #region Changes List
+        /// <summary>
+        /// Get field changes by comparing new value to old value, build list of changes.
+        /// </summary>
+        public ChangesList FieldChanges
+        {
+            get
+            {
+                ChangesList result = new ChangesList();
+
+                #region Compare Values
+
+                if (m_Original != null)
+                {                    
+                    Change change = null;
+                    <%
+        foreach (IColumn column in table.Columns)
+        {%>
+                    // Test for changes for the <%=column.Name%> field
+                    if (m_Current.<%=column.Name%> != m_Original.<%=column.Name%>)
+                    {
+                        change = new Change("<%=column.Name%>");
+                        change.NewValue = m_Current.<%=column.Name%> != null ? m_Current.<%=column.Name%>.ToString() : null;
+                        change.OldValue = m_Original.<%=column.Name%> != null ? m_Original.<%=column.Name%>.ToString() : null;
+                        result.Add(change);
+                    }<%
+        }%>
+        
+                }
+                #endregion
+
+                return result;
+            }
+        }
+        
+        #endregion
+        
+        #region Changedby
+<%
+        if (hasTransactionId)
+        {%>
+        private CdmTransactionLog m_ChangedBy;
+        /// <summary></summary>
+        public CdmTransactionLog ChangedBy
+        {
+            get
+            {
+                if (m_ChangedBy == null || m_ChangedBy.TransactionId != m_Current.TransactionId)
+                {
+                    m_ChangedBy = new CdmTransactionLog(m_db, m_Current.TransactionId);
+                }
+                return m_ChangedBy;
+            }
+        }
+        
+        /// <summary>
+        /// Let's override the save to check for TransactionId changing
+        /// </summary>
+        public override void Save()
+        {
+            // manually create the transaction id
+            if ((m_Current.TransactionId == null) || (m_Original != null && m_Current.TransactionId == m_Original.TransactionId))
+            {
+                TransactionLogManager tlm = new TransactionLogManager(m_db, this);
+                tlm.Syncronize();
+            }
+            base.Save();
+        }
+        
+        /// <summary>
+        /// Let's override the delete to check for TransactionId changing
+        /// </summary>
+        public override void Delete()
+        {
+            // manually create the transaction id
+            if ((!TransactionId.HasValue) || ((m_Original != null) && (TransactionId == m_Original.TransactionId)))
+            {
+                // Force the TLM to produce a new TransactionId
+                Mode = EditMode.Edit;
+                TransactionLogManager tlm = new TransactionLogManager(m_db, this);
+                tlm.Syncronize();
+            }
+            base.Delete();
+        }
+        
+        <%
+        }%>
+        #endregion
+
+    }
+    
+    #endregion
+    
+    #region List Class
+    /// <summary>
+    /// Manages a list of <%=CreateClassName(table.Name)%> objects
+    /// </summary>
+    public partial class <%=CreateClassName(table.Name)%>List : AbstractTableList
+    {
+        #region Private Fields
+        // Data structure to hold objects
+        private List<<%=CreateClassName(table.Name)%>> m_Items = new List<<%=CreateClassName(table.Name)%>>();
+        
+        // Comparison<T> delegate for sorting purposes
+        Comparison<<%=CreateClassName(table.Name)%>> m_Comparison = null;
+        #endregion
+
+        #region Constructors
+        /// <summary>
+        /// Creates an instance of the list class and leaves the list empty
+        /// </summary>
+        public <%=CreateClassName(table.Name)%>List (SqlHelper db) : base(db) {}<%
+
+        if (listColumns != null)
+        {%>
+
+        /// <summary>
+        /// Create an instance of the list class using the foreign keys from the <%=parentTable%> table
+        /// </summary>
+        public <%=CreateClassName(table.Name)%>List(SqlHelper db, <%
+            result="";
+            // MyMeta.Language = "C#";
+            foreach (Column column in listColumns)
+            {
+                if (result != "") result += ", ";
+                result += column.LanguageType + " " + StringFormatter.CamelCasing(column.Name);
+            }
+            MyMeta.Language = "C# Nullable";
+            output.write(result);%>)
+                : base(db) 
+        {
+            List<SqlParameter> results = new List<SqlParameter>();<%
+            result = "";
+            foreach (Column column in listColumns)
+            {%>
+            results.Add(CreateParameter(String.Format("@<%=column.Name%>"), <%=column.DbTargetType%>, <%=StringFormatter.CamelCasing(column.Name)%>));<%
+                if (result != "") result += " AND ";
+                result += column.Name + "=@" + column.Name;
+            }
+
+            if (hasActiveRow)
+                result += " AND RecordStatus IN ('A', 'F')";
+            %>
+            
+            string sql = "SELECT * FROM <%=table.Name%> WITH (NOLOCK) WHERE <%=result%>";
+            Populate(sql, results.ToArray());
+        }<%
+        }%>
+        #endregion
+        
+        #region Public Properties
+        /// <summary>
+        /// Retrieves the Count of items in the list
+        /// </summary>
+        public override int Count
+        {
+            get
+            {
+                return m_Items.Count;
+            }
+        }
+
+        /// <summary>
+        /// Retrieves the list of items to iterate through
+        /// </summary>
+        public IList<<%=CreateClassName(table.Name)%>> Items
+        {
+            get
+            {
+                return m_Items;
+            }
+        }
+
+        ///<summary></summary>
+        public override IList<AbstractTable> TableItems
+        {
+            get
+            {
+                List<AbstractTable> results = new List<AbstractTable>();
+                <%=CreateClassName(table.Name)%>[] list = new <%=CreateClassName(table.Name)%>[m_Items.Count];
+                m_Items.CopyTo(list, 0);
+                results.AddRange(list);
+                return results;
+            }
+        }
+        #endregion
+
+        #region Public Methods
+        /// <summary>
+        /// Adds an item to the list
+        /// </summary>
+        public void Add(<%=CreateClassName(table.Name)%> item)
+        {
+            m_Items.Add(item);
+
+            // Do a sort if we have a comparison delegate
+            if ( m_Comparison != null )
+            {
+                Sort(m_Comparison);
+            }
+        }
+
+        /// <summary>
+        /// Loads the list class based on provided sql and commands.
+        /// </summary>
+        public void Populate(string sql, SqlParameter[] commandParameters)
+        {
+            m_Items.Clear();
+
+            using (SqlDataReader dr = m_db.ExecuteReader(System.Data.CommandType.Text, sql, commandParameters))
+            {
+                while (dr.Read())
+                {
+                    <%=CreateClassName(table.Name)%> item = new <%=CreateClassName(table.Name)%>(m_db, dr);
+                    this.Add(item);
+                }
+            }
+
+            // After populating, call the default sort method
+            Sort();
+        }
+        
+        /// <summary>
+        /// Sort by custom comparison delegate
+        /// </summary>
+        public void Sort(Comparison<<%=CreateClassName(table.Name)%>> comparison)
+        {
+            // Only sort if our delegate has changed
+            if ( comparison != m_Comparison )
+            {
+                m_Items.Sort(comparison);
+                
+                // Save a reference to the delegate 
+                m_Comparison = comparison;
+            }
+        }
+
+        /// <summary>
+        /// Finds class by primary key
+        /// </summary>
+        public <%=CreateClassName(table.Name)%> Find(<%
+        result="";
+        MyMeta.Language = "C#";
+        foreach (IColumn column in table.Columns)
+        {
+            if (column.IsInPrimaryKey)
+            {
+                if (result != "") result += ", ";
+                result += column.LanguageType + " " + StringFormatter.CamelCasing(column.Name);
+            }
+        }
+        MyMeta.Language = "C# Nullable";
+        output.write(result);%>)
+        {
+            <%=CreateClassName(table.Name)%> result = null;
+            <%=CreateClassName(table.Name)%>PrimaryKey key = new <%=CreateClassName(table.Name)%>PrimaryKey();
+<%
+            output.tabLevel = 3;
+            foreach (IColumn column in table.Columns)
+            {
+                if (column.IsInPrimaryKey)
+                {
+                    output.autoTabLn("key." + column.Name + " = " + StringFormatter.CamelCasing(column.Name) + ";");
+                }
+            }%>
+            
+            // Loop through our list until we find the match
+            foreach (<%=CreateClassName(table.Name)%> item in m_Items)
+            {
+                if (item.PrimaryKey.CompareTo(key) == 0)
+                {
+                    result = item;
+                    break;
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Removes class from list by primary key values
+        /// </summary>
+        public bool Remove( <%
+        result="";
+        MyMeta.Language = "C#";
+        foreach (IColumn column in table.Columns)
+        {
+            if (column.IsInPrimaryKey)
+            {
+                if (result != "") result += ", ";
+                result += column.LanguageType + " " + StringFormatter.CamelCasing(column.Name);
+            }
+        }
+        MyMeta.Language = "C# Nullable";
+        output.write(result);%>)
+        {
+            bool result = false;
+            <%=CreateClassName(table.Name)%>PrimaryKey key = new <%=CreateClassName(table.Name)%>PrimaryKey();
+<%
+            output.tabLevel = 3;
+            foreach (IColumn column in table.Columns)
+            {
+                if (column.IsInPrimaryKey)
+                {
+                    output.autoTabLn("key." + column.Name + " = " + StringFormatter.CamelCasing(column.Name) + ";");
+                }
+            }%>
+
+            // Loop through our list until we find the match
+            for (int i = 0; i < m_Items.Count; i++)
+            {
+                if (m_Items[i].PrimaryKey.CompareTo(key) == 0)
+                {
+                    m_Items.RemoveAt(i);
+                    result = true;
+                    break;
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Removes the class passed in by object reference
+        /// </summary>
+        public bool Remove(<%=CreateClassName(table.Name)%> item)
+        {
+            return m_Items.Remove(item);
+        }
+
+        ///<summary></summary>
+        public <%=CreateDataClassName(table.Name)%>[] GetCurrentValues()
+        {
+            List<<%=CreateDataClassName(table.Name)%>> results = new List<<%=CreateDataClassName(table.Name)%>>();
+            foreach (<%=CreateClassName(table.Name)%> item in m_Items)
+            {
+                results.Add(item.GetCurrentValues());
+            }
+            return results.ToArray();
+        }<%
+        if (hasLogicalKeys && tableType == "his") {%>
+
+        /// <summary>
+        /// Searches the list for the record in effect today for the given
+        /// logical key values
+        /// </summary>
+        public <%=CreateClassName(table.Name)%> FindCurrentAsOfToday(<%
+            result="";
+            MyMeta.Language = "C#";
+            foreach (IColumn column in logicalKeysList)
+            {
+                if (result != "") result += ", ";
+                result += column.LanguageType + " " + StringFormatter.CamelCasing(column.Name);
+            }
+            output.write(result);
+            MyMeta.Language = "C# Nullable";%>)
+        {
+            return FindCurrentAsOf(<%
+                result="";
+        foreach (IColumn column in logicalKeysList)
+        {
+            if (result != "") result += ", ";
+            result += StringFormatter.CamelCasing(column.Name);
+        }
+        output.write(result);%>, DateTime.UtcNow.Date);
+        }
+
+        /// <summary>
+        /// Searches the list for the record in effect on the given date
+        /// for the given logical key values
+        /// </summary>
+        public <%=CreateClassName(table.Name)%> FindCurrentAsOf(<%
+                result="";
+                MyMeta.Language = "C#";
+                foreach (IColumn column in logicalKeysList)
+                {
+                    if (result != "") result += ", ";
+                    result += column.LanguageType + " " + StringFormatter.CamelCasing(column.Name);
+                }
+                output.write(result);
+                MyMeta.Language = "C# Nullable";%>, DateTime asOfDate)
+        {
+            <%=CreateClassName(table.Name)%> returnVal = null;
+
+            foreach (<%=CreateClassName(table.Name)%> item in m_Items)
+            {
+                // Check for the same logical key<%
+                
+                result="";
+        foreach (IColumn column in logicalKeysList)
+        {
+            if (result != "") result += " && ";
+            
+            if (column.LanguageType == "string")
+            {
+                result += "(item." + column.Name + " == " +
+                    StringFormatter.CamelCasing(column.Name) + ")";
+            }
+            else
+            {
+                result += "(item." + column.Name + ".GetValueOrDefault() == " +
+                    StringFormatter.CamelCasing(column.Name) + ")";
+            }
+        }%>
+                if (<%=result%>)
+                {
+                    // Check effective date
+                    if (item.EffectiveDate.HasValue && (item.EffectiveDate.Value <= asOfDate))
+                    {
+                        // If it's a matching effective date we're done
+                        if (item.EffectiveDate.Value == asOfDate)
+                        {
+                            returnVal = item;
+                            break;
+                        }
+                        // See if it's the new winner, yet continue searching
+                        else if ((returnVal == null) || (returnVal.EffectiveDate < item.EffectiveDate))
+                        {
+                            returnVal = item;
+                        }
+                    }
+                }
+            }
+
+            return returnVal;
+        }<%}%>
+        #endregion
+    }
+    #endregion
+    
+    #region Primary Key
+    /// <summary>
+    /// Class used to represent the primary key fields in the <%=table.Name%> table
+    /// </summary>
+    public class <%=CreateClassName(table.Name)%>PrimaryKey : IComparable<<%=CreateClassName(table.Name)%>PrimaryKey> 
+    {
+<%
+        output.tabLevel = 2;
+        MyMeta.Language = "C#";
+        foreach (IColumn column in table.Columns)
+        {
+            if (column.IsInPrimaryKey)
+            {
+                output.autoTabLn("///<summary>" + column.Description.Replace("\r\n", "\r\n\t\t/// ") + "</summary>");
+                output.autoTabLn("public " + column.LanguageType + " " +  column.Name + ";");
+            }
+        }
+        MyMeta.Language = "C# Nullable";%>  	
+        #region IComparable<CDMCodegenPrimaryKey> Members
+        ///<summary></summary>
+        public int CompareTo(<%=CreateClassName(table.Name)%>PrimaryKey other)
+        {
+            int result = 0;
+            if (other != null)
+            {<%
+                output.tabLevel = 4;
+                bool first = true;
+                foreach (IColumn column in table.Columns)
+                {
+                    if (column.IsInPrimaryKey)
+                    {
+                        if (first)
+                        {%>
+                        if (this.<%=column.Name%>.CompareTo(other.<%=column.Name%>) != 0)
+                            result = this.<%=column.Name%>.CompareTo(other.<%=column.Name%>);<%
+                            first = false;
+                        }
+                        else
+                        {%>
+                        else if (this.<%=column.Name%>.CompareTo(other.<%=column.Name%>) != 0)
+                            result = this.<%=column.Name%>.CompareTo(other.<%=column.Name%>);<%
+                        }
+                    }
+                }%>
+            }
+            // By definition, an object always compares greater than NULL
+            else
+            {
+                result = 1;
+            }
+            return result;
+        }
+        #endregion
+    }
+    #endregion<% if ( hasLogicalKeys && (tableType == "his" || tableType == "txn")) { %>
+
+    #region Logical Key
+    /// <summary>
+    /// Class used to represent the logical key fields in the <%=table.Name%> table
+    /// </summary>
+    public class <%=CreateClassName(table.Name)%>LogicalKey : IComparable<<%=CreateClassName(table.Name)%>LogicalKey> 
+    {
+        public DateTime <%=tableDateField%>;
+<%
+        output.tabLevel = 2;
+        MyMeta.Language = "C#";
+        foreach (IColumn column in logicalKeysList)
+        {
+            output.autoTabLn("///<summary>" + column.Description.Replace("\r\n", "\r\n\t\t/// ") + "</summary>");
+            output.autoTabLn("public " + column.LanguageType + " " +  column.Name + ";");
+        }
+        MyMeta.Language = "C# Nullable";%>  	
+        #region IComparable<CDMCodegenLogicalKey> Members
+        ///<summary></summary>
+        public int CompareTo(<%=CreateClassName(table.Name)%>LogicalKey other)
+        {
+            int result = 0;
+            if (other != null)
+            {<%
+        output.tabLevel = 4;
+        bool firsttime = true;
+        foreach (IColumn column in logicalKeysList)
+        {
+            if (firsttime)
+            {%>
+                if (this.<%=column.Name%>.CompareTo(other.<%=column.Name%>) != 0)
+                    result = this.<%=column.Name%>.CompareTo(other.<%=column.Name%>);<%
+                firsttime = false;
+            }
+            else
+            {%>
+                else if (this.<%=column.Name%>.CompareTo(other.<%=column.Name%>) != 0)
+                    result = this.<%=column.Name%>.CompareTo(other.<%=column.Name%>);<%
+            }
+        }%>
+                else if (this.<%=tableDateField%>.CompareTo(other.<%=tableDateField%>) != 0)
+                    result = this.<%=tableDateField%>.CompareTo(other.<%=tableDateField%>);
+            }
+            // By definition, an object always compares greater than NULL
+            else
+            {
+                result = 1;
+            }
+            return result;
+        }
+        #endregion
+    }
+    #endregion<%}%>
+
+    #region SortedList Class
+    /// <summary>
+    /// Manages a Sorted list of <%=CreateClassName(table.Name)%> objects
+    /// </summary>
+    public partial class <%=CreateClassName(table.Name)%>SortedList : AbstractTableList
+    {
+        private SortedList<<%=CreateClassName(table.Name)%>PrimaryKey, <%=CreateClassName(table.Name)%>> m_Items = new SortedList<<%=CreateClassName(table.Name)%>PrimaryKey, <%=CreateClassName(table.Name)%>>();
+
+        /// <summary>
+        /// Creates an instance of the list class and leaves the list empty
+        /// </summary>
+        public <%=CreateClassName(table.Name)%>SortedList (SqlHelper db) : base(db) {}<%
+
+        if (listColumns != null)
+        {
+%>
+
+        /// <summary>
+        /// Create an instance of the list class using the foreign keys from the <%=parentTable%> table
+        /// </summary>
+        public <%=CreateClassName(table.Name)%>SortedList(SqlHelper db, <%
+            result="";
+            // MyMeta.Language = "C#";
+            foreach (Column column in listColumns)
+            {
+                if (result != "") result += ", ";
+                result += column.LanguageType + " " + StringFormatter.CamelCasing(column.Name);
+            }
+            MyMeta.Language = "C# Nullable";
+            output.write(result);%>)
+            : base(db) 
+        {
+            List<SqlParameter> results = new List<SqlParameter>();<%
+            result = "";
+            foreach (Column column in listColumns)
+            {%>
+            results.Add(CreateParameter(String.Format("@<%=column.Name%>"), <%=column.DbTargetType%>, <%=StringFormatter.CamelCasing(column.Name)%>));<%
+                if (result != "") result += " AND ";
+                result += column.Name + "=@" + column.Name;
+            }%>
+            
+            string sql = "SELECT * FROM <%=table.Name%> WITH (NOLOCK) WHERE <%=result%>";
+            Populate(sql, results.ToArray());
+        }<%
+        }%>
+
+        /// <summary>
+        /// Retrieves the Count of items in the list
+        /// </summary>
+        public override int Count
+        {
+            get
+            {
+                return m_Items.Count;
+            }
+        }
+
+        /// <summary>
+        /// Retrieves the list of items to iterate through
+        /// </summary>
+        public IList<<%=CreateClassName(table.Name)%>> Items
+        {
+            get
+            {
+                return m_Items.Values;
+            }
+        }
+        
+        ///<summary></summary>
+        public override IList<AbstractTable> TableItems
+        {
+            get
+            {
+                List<AbstractTable> results = new List<AbstractTable>();
+                <%=CreateClassName(table.Name)%>[] list = new <%=CreateClassName(table.Name)%>[m_Items.Count];
+                m_Items.Values.CopyTo(list, 0);
+                results.AddRange(list);
+                return results;
+            }
+        }
+
+        /// <summary>
+        /// Finds class by primary key
+        /// </summary>
+        public <%=CreateClassName(table.Name)%> Find(<%
+        result="";
+        MyMeta.Language = "C#";
+        foreach (IColumn column in table.Columns)
+        {
+            if (column.IsInPrimaryKey)
+            {
+                if (result != "") result += ", ";
+                result += column.LanguageType + " " + StringFormatter.CamelCasing(column.Name);
+            }
+        }
+        MyMeta.Language = "C# Nullable";
+        output.write(result);%>)
+        {
+            <%=CreateClassName(table.Name)%> result = null;
+            <%=CreateClassName(table.Name)%>PrimaryKey key = new <%=CreateClassName(table.Name)%>PrimaryKey();
+<%
+            output.tabLevel = 3;
+            foreach (IColumn column in table.Columns)
+            {
+                if (column.IsInPrimaryKey)
+                {
+                    output.autoTabLn("key." + column.Name + " = " + StringFormatter.CamelCasing(column.Name) + ";");
+                }
+            }%>  			
+            if (m_Items.ContainsKey(key))
+            {
+                result = m_Items[key];
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Removes class from list by primary key
+        /// </summary>
+        public bool Remove( <%
+        result="";
+        MyMeta.Language = "C#";
+        foreach (IColumn column in table.Columns)
+        {
+            if (column.IsInPrimaryKey)
+            {
+                if (result != "") result += ", ";
+                result += column.LanguageType + " " + StringFormatter.CamelCasing(column.Name);
+            }
+        }
+        MyMeta.Language = "C# Nullable";
+        output.write(result);%>)
+        {
+            bool result = false;
+            <%=CreateClassName(table.Name)%>PrimaryKey key = new <%=CreateClassName(table.Name)%>PrimaryKey();
+<%
+            output.tabLevel = 3;
+            foreach (IColumn column in table.Columns)
+            {
+                if (column.IsInPrimaryKey)
+                {
+                    output.autoTabLn("key." + column.Name + " = " + StringFormatter.CamelCasing(column.Name) + ";");
+                }
+            }%>  			
+            if (m_Items.ContainsKey(key))
+            {
+                result = Remove(m_Items[key]);
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Removes the class passed in by primary key
+        /// </summary>
+        public bool Remove(<%=CreateClassName(table.Name)%> item)
+        {
+            bool result = false;
+            result = m_Items.Remove(item.PrimaryKey);
+            return result;
+        }
+
+        /// <summary>
+        /// Adds an item to the list
+        /// </summary>
+        public void Add(<%=CreateClassName(table.Name)%> item)
+        {
+            m_Items.Add(item.PrimaryKey, item);
+        }
+
+        /// <summary>
+        /// Loads the list class based on provided sql and commands.
+        /// </summary>
+        public void Populate(string sql, SqlParameter[] commandParameters)
+        {
+            m_Items.Clear();
+
+            using (SqlDataReader dr = m_db.ExecuteReader(System.Data.CommandType.Text, sql, commandParameters))
+            {
+                while (dr.Read())
+                {
+                    <%=CreateClassName(table.Name)%> item = new <%=CreateClassName(table.Name)%>(m_db, dr);
+                    this.Add(item);
+                }
+            }
+        }
+        
+        ///<summary></summary>
+        public <%=CreateDataClassName(table.Name)%>[] GetCurrentValues()
+        {
+            List<<%=CreateDataClassName(table.Name)%>> results = new List<<%=CreateDataClassName(table.Name)%>>();
+            foreach (<%=CreateClassName(table.Name)%> item in m_Items.Values)
+            {
+                results.Add(item.GetCurrentValues());
+            }
+            return results.ToArray();
+        }<%
+        if (hasLogicalKeys && tableType == "his") {%>
+        
+        /// <summary>
+        /// Searches the list for the record in effect today for the given
+        /// logical key values
+        /// </summary>
+        public <%=CreateClassName(table.Name)%> FindCurrentAsOfToday(<%
+            result="";
+            MyMeta.Language = "C#";
+            foreach (IColumn column in logicalKeysList)
+            {
+                if (result != "") result += ", ";
+                result += column.LanguageType + " " + StringFormatter.CamelCasing(column.Name);
+            }
+            output.write(result);
+            MyMeta.Language = "C# Nullable";%>)
+        {
+            return FindCurrentAsOf(<%
+                result="";
+        foreach (IColumn column in logicalKeysList)
+        {
+            if (result != "") result += ", ";
+            result += StringFormatter.CamelCasing(column.Name);
+        }
+        output.write(result);%>, DateTime.UtcNow.Date);
+        }
+        
+        /// <summary>
+        /// Searches the list for the record in effect on the given date
+        /// for the given logical key values
+        /// </summary>
+        public <%=CreateClassName(table.Name)%> FindCurrentAsOf(<%
+                result="";
+                MyMeta.Language = "C#";
+                foreach (IColumn column in logicalKeysList)
+                {
+                    if (result != "") result += ", ";
+                    result += column.LanguageType + " " + StringFormatter.CamelCasing(column.Name);
+                }
+                output.write(result);
+                MyMeta.Language = "C# Nullable";%>, DateTime asOfDate)
+        {
+            <%=CreateClassName(table.Name)%> returnVal = null;
+
+            foreach (<%=CreateClassName(table.Name)%> item in m_Items.Values)
+            {
+                // Check for the same logical key<%
+                
+                result="";
+        foreach (IColumn column in logicalKeysList)
+        {
+            if (result != "") result += " && ";
+            
+            if (column.LanguageType == "string")
+            {
+                result += "(item." + column.Name + " == " +
+                    StringFormatter.CamelCasing(column.Name) + ")";
+            }
+            else
+            {
+                result += "(item." + column.Name + ".GetValueOrDefault() == " +
+                    StringFormatter.CamelCasing(column.Name) + ")";
+            }
+        }%>
+                if (<%=result%>)
+                {
+                    // Check effective date
+                    if (item.EffectiveDate.HasValue && (item.EffectiveDate.Value <= asOfDate))
+                    {
+                        // If it's a matching effective date we're done
+                        if (item.EffectiveDate.Value == asOfDate)
+                        {
+                            returnVal = item;
+                            break;
+                        }
+                        // See if it's the new winner, yet continue searching
+                        else if ((returnVal == null) || (returnVal.EffectiveDate < item.EffectiveDate))
+                        {
+                            returnVal = item;
+                        }
+                    }
+                }
+            }
+
+            return returnVal;
+        }<%}%>
+    }
+    #endregion<% if ( hasLogicalKeys && (tableType == "his" || tableType == "txn")) { %>
+    
+    #region Logical Key Ordered List Class
+    /// <summary>
+    /// Manages a list of <%=CreateClassName(table.Name)%> objects sorted by the
+    /// logical key and <%=tableDateField%>
+    /// </summary>
+    public partial class <%=CreateClassName(table.Name)%>LogicalKeyList : AbstractTableList
+    {
+        private SortedList<<%=CreateClassName(table.Name)%>LogicalKey, <%=CreateClassName(table.Name)%>> m_Items = new SortedList<<%=CreateClassName(table.Name)%>LogicalKey, <%=CreateClassName(table.Name)%>>();
+
+        /// <summary>
+        /// Creates an instance of the list class and leaves the list empty
+        /// </summary>
+        public <%=CreateClassName(table.Name)%>LogicalKeyList (SqlHelper db) : base(db) {}<%
+
+        if (listColumns != null)
+        {
+%>
+
+        /// <summary>
+        /// Create an instance of the list class using the foreign keys from the <%=parentTable%> table
+        /// </summary>
+        public <%=CreateClassName(table.Name)%>LogicalKeyList(SqlHelper db, <%
+            result="";
+            // MyMeta.Language = "C#";
+            foreach (Column column in listColumns)
+            {
+                if (result != "") result += ", ";
+                result += column.LanguageType + " " + StringFormatter.CamelCasing(column.Name);
+            }
+            MyMeta.Language = "C# Nullable";
+            output.write(result);%>)
+            : base(db) 
+        {
+            List<SqlParameter> results = new List<SqlParameter>();<%
+            result = "";
+            foreach (Column column in listColumns)
+            {%>
+            results.Add(CreateParameter(String.Format("@<%=column.Name%>"), <%=column.DbTargetType%>, <%=StringFormatter.CamelCasing(column.Name)%>));<%
+                if (result != "") result += " AND ";
+                result += column.Name + "=@" + column.Name;
+            }%>
+
+            string sql = "SELECT * FROM <%=table.Name%> WITH (NOLOCK) WHERE <%=result%>";
+            Populate(sql, results.ToArray());
+        }<%
+        }%>
+
+        /// <summary>
+        /// Retrieves the Count of items in the list
+        /// </summary>
+        public override int Count
+        {
+            get
+            {
+                return m_Items.Count;
+            }
+        }
+
+        /// <summary>
+        /// Retrieves the list of items to iterate through
+        /// </summary>
+        public IList<<%=CreateClassName(table.Name)%>> Items
+        {
+            get
+            {
+                return m_Items.Values;
+            }
+        }
+
+        ///<summary></summary>
+        public override IList<AbstractTable> TableItems
+        {
+            get
+            {
+                List<AbstractTable> results = new List<AbstractTable>();
+                <%=CreateClassName(table.Name)%>[] list = new <%=CreateClassName(table.Name)%>[m_Items.Count];
+                m_Items.Values.CopyTo(list, 0);
+                results.AddRange(list);
+                return results;
+            }
+        }
+
+        /// <summary>
+        /// Finds class by logical key
+        /// </summary>
+        public <%=CreateClassName(table.Name)%> Find(<%
+        result="";
+        MyMeta.Language = "C#";
+        foreach (IColumn column in logicalKeysList)
+        {
+            if (result != "") result += ", ";
+            result += column.LanguageType + " " + StringFormatter.CamelCasing(column.Name);
+        }
+        MyMeta.Language = "C# Nullable";
+        output.write(result);%>, DateTime <%=StringFormatter.CamelCasing(tableDateField)%>)
+        {
+            <%=CreateClassName(table.Name)%> result = null;
+            <%=CreateClassName(table.Name)%>LogicalKey key = new <%=CreateClassName(table.Name)%>LogicalKey();
+
+            key.<%=tableDateField%> = <%=StringFormatter.CamelCasing(tableDateField)%>;
+<%
+            output.tabLevel = 3;
+            foreach (IColumn column in logicalKeysList)
+            {
+                output.autoTabLn("key." + column.Name + " = " + StringFormatter.CamelCasing(column.Name) + ";");
+            }%>  			
+            if (m_Items.ContainsKey(key))
+            {
+                result = m_Items[key];
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Removes class from list by logical key
+        /// </summary>
+        public bool Remove(<%
+        result="";
+        MyMeta.Language = "C#";
+        foreach (IColumn column in logicalKeysList)
+        {
+            if (result != "") result += ", ";
+            result += column.LanguageType + " " + StringFormatter.CamelCasing(column.Name);
+        }
+        MyMeta.Language = "C# Nullable";
+        output.write(result);%>, DateTime <%=StringFormatter.CamelCasing(tableDateField)%>)
+        {
+            bool result = false;
+            <%=CreateClassName(table.Name)%>LogicalKey key = new <%=CreateClassName(table.Name)%>LogicalKey();
+
+            key.<%=tableDateField%> = <%=StringFormatter.CamelCasing(tableDateField)%>;
+<%
+            output.tabLevel = 3;
+            foreach (IColumn column in logicalKeysList)
+            {
+                output.autoTabLn("key." + column.Name + " = " + StringFormatter.CamelCasing(column.Name) + ";");
+            }%>  			
+            if (m_Items.ContainsKey(key))
+            {
+                result = Remove(m_Items[key]);
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Removes the class passed in by logical key
+        /// </summary>
+        public bool Remove(<%=CreateClassName(table.Name)%> item)
+        {
+            bool result = false;
+            result = m_Items.Remove(item.LogicalKey);
+            return result;
+        }
+
+        /// <summary>
+        /// Adds an item to the list
+        /// </summary>
+        public void Add(<%=CreateClassName(table.Name)%> item)
+        {
+            m_Items.Add(item.LogicalKey, item);
+        }
+
+        /// <summary>
+        /// Loads the list class based on provided sql and commands.
+        /// </summary>
+        public void Populate(string sql, SqlParameter[] commandParameters)
+        {
+            m_Items.Clear();
+
+            using (SqlDataReader dr = m_db.ExecuteReader(System.Data.CommandType.Text, sql, commandParameters))
+            {
+                while (dr.Read())
+                {
+                    <%=CreateClassName(table.Name)%> item = new <%=CreateClassName(table.Name)%>(m_db, dr);
+                    this.Add(item);
+                }
+            }
+        }
+
+        ///<summary></summary>
+        public <%=CreateDataClassName(table.Name)%>[] GetCurrentValues()
+        {
+            List<<%=CreateDataClassName(table.Name)%>> results = new List<<%=CreateDataClassName(table.Name)%>>();
+            foreach (<%=CreateClassName(table.Name)%> item in m_Items.Values)
+            {
+                results.Add(item.GetCurrentValues());
+            }
+            return results.ToArray();
+        }<%
+    if (tableType == "his") {%>
+
+        /// <summary>
+        /// Searches the list for the record in effect today for the given
+        /// logical key values
+        /// </summary>
+        public <%=CreateClassName(table.Name)%> FindCurrentAsOfToday(<%
+            result="";
+            MyMeta.Language = "C#";
+            foreach (IColumn column in logicalKeysList)
+            {
+                if (result != "") result += ", ";
+                result += column.LanguageType + " " + StringFormatter.CamelCasing(column.Name);
+            }
+            output.write(result);
+            MyMeta.Language = "C# Nullable";%>)
+        {
+            return FindCurrentAsOf(<%
+        result="";
+        foreach (IColumn column in logicalKeysList)
+        {
+            if (result != "") result += ", ";
+            result += StringFormatter.CamelCasing(column.Name);
+        }
+        output.write(result);%>, DateTime.UtcNow.Date);
+        }
+
+        /// <summary>
+        /// Searches the list for the record in effect on the given date
+        /// for the given logical key values
+        /// </summary>
+        public <%=CreateClassName(table.Name)%> FindCurrentAsOf(<%
+                result="";
+                MyMeta.Language = "C#";
+                foreach (IColumn column in logicalKeysList)
+                {
+                    if (result != "") result += ", ";
+                    result += column.LanguageType + " " + StringFormatter.CamelCasing(column.Name);
+                }
+                output.write(result);
+                MyMeta.Language = "C# Nullable";%>, DateTime asOfDate)
+        {
+            <%=CreateClassName(table.Name)%> returnVal = null;
+            bool foundLogicalKey = false;
+
+            foreach (<%=CreateClassName(table.Name)%> item in m_Items.Values)
+            {
+                // Check for the same logical key<%
+
+        result="";
+        foreach (IColumn column in logicalKeysList)
+        {
+            if (result != "") result += " && ";
+            
+            if (column.LanguageType == "string")
+            {
+                result += "(item." + column.Name + " == " +
+                    StringFormatter.CamelCasing(column.Name) + ")";
+            }
+            else
+            {
+                result += "(item." + column.Name + ".GetValueOrDefault() == " +
+                    StringFormatter.CamelCasing(column.Name) + ")";
+            }
+        }%>
+                if (<%=result%>)
+                {
+                    // Mark that we have encountered the logical key
+                    foundLogicalKey = true;
+
+                    // Check effective date
+                    if (item.EffectiveDate.HasValue && (item.EffectiveDate.Value <= asOfDate))
+                    {
+                        // If it's a matching effective date we're done
+                        if (item.EffectiveDate.Value == asOfDate)
+                        {
+                            returnVal = item;
+                            break;
+                        }
+                        // Otherwise it's the new winner, yet continue searching
+                        else
+                        {
+                            returnVal = item;
+                        }
+                    }
+                }
+                // If we already found the logical key, we won't find it again since
+                //  the data is sorted by logical key and effective date
+                else if ( foundLogicalKey )
+                {
+                    break;
+                }
+            }
+
+            return returnVal;
+        }<%}%>
+    }
+    #endregion<% } %>
+
+    #region Data Class
+    /// <summary>
+    /// Represents just the data in the <%=table.Name%> table.
+    /// </summary>
+    public partial class <%=CreateDataClassName(table.Name)%> : ICloneable
+    {
+<%
+        foreach (IColumn column in table.Columns)
+        {
+            output.tabLevel = 2;
+            output.autoTabLn("///<summary>" + column.Description.Replace("\r\n", "\r\n\t\t/// ") + "</summary>");
+            output.autoTabLn("public " + column.LanguageType + " " + column.Name + " ; ");
+        }%><%
+        if (hasTransactionId)
+        {%>
+        /// <summary></summary>
+        public string ChangedBy;
+        /// <summary></summary>
+        public DateTime? ChangedDate;<%
+        }%>		
+        #region ICloneable Members
+        /// <summary>
+        /// Performs a "shallow" copy of this object.
+        /// </summary>
+        public object Clone()
+        {
+            return this.MemberwiseClone();
+        }
+        #endregion	
+    }
+    #endregion
+}
+<%
+
+
+}
+/// SHARED FUNCTIONS
+    
+    // utility functions
+    public string GetSqlGetName(IColumn column)
+    {
+        string result = "";
+        MyMeta.Language = "DataReaderSqlGet";
+        result = column.LanguageType;
+        MyMeta.Language = "C# Nullable";
+        return result;
+    }
+    
+    public string CreateDataClassName(string table)
+    {
+        return CreateClassName(table) + "Data";
+    }
+    public string CreateClassName(string table)
+    {
+        string result = "";
+        string[] items = table.Split('_');
+
+        for (int index=0; index < items.Length; index++)
+        {
+            if (index == 0 && items[index].Length < 3)
+            {
+                items[index] = items[index].ToUpper();
+            }
+            else
+            {
+                items[index] = items[index].Substring(0, 1).ToUpper() + items[index].Substring(1);
+            }
+        }
+
+        result = String.Join("", items);
+        return result;
+    }
+}
+public class StringFormatter
+{
+    public static string CamelCasing(string str)
+    {
+    if (str.Length > 0)
+    {
+        if (str.Length == 1)
+        {
+        return str.ToLower();
+        }
+        else
+        {
+        return Char.ToLower(str[0]).ToString() + str.Substring(1);
+        }
+    }
+    return string.Empty;
+    }
+
+    public static string PascalCasing(string str)
+    {
+    if (str.Length > 0)
+    {
+        if (str.Length == 1)
+        {
+        return str.ToUpper();
+        }
+        else
+        {
+        return Char.ToUpper(str[0]).ToString() + str.Substring(1);
+        }
+    }
+    return string.Empty;
+    }
+}
+%>
+##|BODY_END

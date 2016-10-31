@@ -1,0 +1,46 @@
+﻿@using System.Reflection;
+
+<head>
+    <title>@ViewBag.Title - Mambo Soul</title>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!--Render bundles stuff here-->
+    @Styles.Render("~/Content/css")
+    @Scripts.Render("~/bundles/jquery")
+    @Scripts.Render("~/bundles/bootstrap")
+</head>
+
+<body>
+    <div id="header">
+        <table style="width:100%">
+            <tr>
+                <td><span style="font-size:50px; font-style:italic; float:left"><strong>Mambo Soul Dance Company</strong></span></td>
+                <td rowspan="2" style="text-align:right"><img src="../Images/Logo_small.jpg" /></td>
+            </tr>
+            <tr>
+                <td><span style="font-size:30px; font-style:italic; float:left;">Latin Dance Instruction</span></td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="container">
+        <nav class="navbar navbar-inverse">
+            <ul class="nav navbar-nav">
+                <li id="navhome" class="active">@Html.ActionLink("Home", "Index", "Home")</li>
+                <li id="navevents">@Html.ActionLink("Events", "Events", "Home")</li>
+                <li id="navcontact">@Html.ActionLink("Contact", "Contact", "Home")</li>
+                <li id="navabout">@Html.ActionLink("About", "About", "Home")</li>
+            </ul>
+        </nav>
+
+        @RenderSection("scripts", false)
+        @RenderBody()
+
+    </div>
+
+    <div id="footer" class="footer">
+        <footer>
+            &copy;MamboSoul @DateTime.Now.Year
+        </footer>
+    </div>
+</body>

@@ -1,0 +1,50 @@
+﻿@{
+    ViewBag.Title = "Contact";
+    Layout = "~/Views/_Layout.cshtml";
+}
+
+<br />
+<br />
+<div class="panel panel-default">
+    <div class="panel-heading">Mambo Soul Dance Club <span style="color:#B80000; font-size:18px;">Location</span></div>
+    <div class="panel-body" style="margin-left:20px;">Tanglefoot Cottage Dance School - 607 37th Street Des Moines, Iowa 50312</div>
+</div>
+
+<div id="map_canvas"></div>
+<br />
+
+<p style="font-size:18px;">If you have any questions, comments, or concerns please email us: <a class="btn btn-sm" href="mailto:mambosoulschool@gmail.com" style="font-size:25px; color:#B80000;"><span class="glyphicon glyphicon-envelope"></span></a></p>
+
+
+@section scripts
+{
+    <script src="https://maps.googleapis.com/maps/api/js"></script>
+
+    <script>
+        $(document).ready(function () {
+            $("#navhome").removeClass("active");
+            $("#navevents").removeClass("active");
+            $("#navcontact").removeClass("active").addClass("active");
+            $("#navabout").removeClass("active");
+        });
+    </script>
+
+    <script>
+        function initialize() {
+            var latlang = new google.maps.LatLng(41.586692, -93.666422);
+            var map_canvas = document.getElementById('map_canvas');
+            var map_options = {
+                center: latlang,
+                zoom: 15,
+                mapTypeId: google.maps.MapTypeId.ROADMAP
+            }
+            var map = new google.maps.Map(map_canvas, map_options)
+            var marker = new google.maps.Marker({
+                position: latlang,
+                map: map,
+                title: "Tanglefoot Cottage Dance School"
+            });
+        }
+        google.maps.event.addDomListener(window, 'load', initialize);
+    </script>
+}

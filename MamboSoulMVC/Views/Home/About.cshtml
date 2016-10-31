@@ -1,0 +1,109 @@
+﻿@{
+    ViewBag.Title = "About";
+    Layout = "~/Views/_Layout.cshtml";
+}
+
+<h1 style="color:#B80000">Click on a coaches name to learn more about them!</h1>
+
+<button type="button" class="btn btn-info btn-lg" data-toggle="modal" data-target="#modalManuel">Manuel de Aragon</button>
+
+<img src="~/Images/Manuel.jpg" style="clear:both; display:block; padding-top:5px;" />
+
+  <!-- Modal -->
+<div class="modal fade" id="modalManuel" role="dialog">
+    <div class="modal-dialog">
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+                <h4 class="modal-title">Manuel de Aragon</h4>
+            </div>
+            <div class="modal-body">
+                <p>Manuel was born in Lima, Peru, among salsa music and culture.
+                He started formal salsa dancing training in 2008 (Descarga Latin Club) as well as ballroom training (Cyclone Ballroom). Then he began competing in many collegiate ballroom competitions, including the USA Dance National Collegiate DanceSport Championship in Columbus Ohio.
+                As Manuel’s skills improved he advanced and moved up to the gold level, where he competed against dancers in the highest proficiency level.
+                In order to further his training and improve his technique, he attended salsa congresses in the Midwest and worked with many top ranked instructors.
+                After moving to Des Moines he desired to expand the level of salsa in the area, so he started a dance school.  His coach, Anya Katsevman, is a two-time world salsa champion from New York.
+                Manuel applies and teaches the techniques Anya has imparted to him in order to improve the skills of latin dancers in Des Moines.
+                He has participated in amateur salsa dancing competitions around the Midwest as well as New York City. Manuel’s current goal is to compete as a professional competitor and compete with his students in pro-am competitions.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<br />
+<br />
+
+<button type="button" class="btn btn-info btn-lg" data-toggle="modal" data-target="#modalJessica">Jessica Ireland</button>
+
+<img src="~/Images/Jessica.jpg" style="clear:both; display:block; padding-top:5px;" />
+
+<!-- Modal -->
+<div class="modal fade" id="modalJessica" role="dialog">
+    <div class="modal-dialog">
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+                <h4 class="modal-title">Jessica Ireland</h4>
+            </div>
+            <div class="modal-body">
+                <p>
+                    Jessica began dancing in 2009 under John and Liz of Salsamania of the San Francisco Bay Area.  It was quite a challenge since she had never danced before, but she fell in love with salsa immediately, and it wasn't long before she was dancing every day of the week.
+                    She returned to her home, Des Moines, in 2010 and was pleased to discover it had a salsa community.
+                    She has been teaching, performing, and competing in the area since 2011.  Her goals are to help others discover the joy of dancing, and grow in their technique and confidence.  After all, she is living proof that anyone can dance!
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<br />
+<br />
+
+<button type="button" class="btn btn-info btn-lg" data-toggle="modal" data-target="#modalAnya">Anya Katsevman</button>
+
+<img src="~/Images/Anya.jpg" style="clear:both; display:block; padding-top:5px;" />
+
+<!-- Modal -->
+<div class="modal fade" id="modalAnya" role="dialog">
+    <div class="modal-dialog">
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+                <h4 class="modal-title">Anya Katsevman</h4>
+            </div>
+            <div class="modal-body">
+                <p>
+                    To learn more about Mambo Soul's coach, Anya Katsevman, as well as watch videos, and order DVD's, please click <a style="font-weight:700; text-decoration:none;" href="http://www.anyakatsevman.com" ; target="_blank">here</a>
+                    <br />
+                    <br />
+                    Anya has also created a website to service the NYC salsa community. If you are interested in learning more about the NYC salsa scene-parties, instructors, and class, please click
+                    <a style="font-weight:700; text-decoration:none;" href="http://www.mambosalsanyc.com" ; target="_blank">here</a>
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section scripts
+{
+    <script>
+        $(document).ready(function () {
+            $("#navhome").removeClass("active");
+            $("#navevents").removeClass("active");
+            $("#navcontact").removeClass("active");
+            $("#navabout").removeClass("active").addClass("active");
+        });
+    </script>
+}

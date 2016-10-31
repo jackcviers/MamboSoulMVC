@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<obj name="" uid="3bf563db-6fce-434c-b229-7ad3ec923b90" path="C:\Users\Joe\Documents\Visual Studio 2013\Projects\MamboSoulMVC\BusinessObjects\Database\sqltocs.zeus">
+	<items>
+		<item name="__dbConnectionString" type="System.String" val="Provider=SQLOLEDB.1;Data Source=WINDOWS-28T6H06;Initial Catalog=MamboSoul;Integrated Security=SSPI" />
+		<item name="__dbDriver" type="System.String" val="SQL" />
+		<item name="__dbLanguageMappingFileName" type="System.String" val="C:\Users\Joe\Documents\Visual Studio 2013\Projects\MamboSoulMVC\BusinessObjects\Database\Languages.xml" />
+		<item name="__dbTarget" type="System.String" val="SqlClient" />
+		<item name="__dbTargetMappingFileName" type="System.String" val="C:\Users\Joe\Documents\Visual Studio 2013\Projects\MamboSoulMVC\BusinessObjects\Database\DbTargets.xml" />
+		<item name="__language" type="System.String" val="C# Nullable" />
+		<item name="cmbDatabase" type="System.String" val="MamboSoul" />
+		<item name="lstTables" type="System.Collections.ArrayList"
+			  val="System.String|H|slider_image;" />
+		<item name="activeColumns" type="System.String" val="" />
+		<item name="txtNamespace" type="System.String" val="BusinessObjects.GeneratedTables" />
+		<item name="isBatch" type="System.Boolean" val="true" />
+    <item name="useDesigner" type="System.Boolean" val="true" />
+    <item name="txtPath" type="System.String" val="C:\Users\Joe\Documents\Visual Studio 2013\Projects\MamboSoulMVC\BusinessObjects\GeneratedTables" />
+	</items>
+</obj>
